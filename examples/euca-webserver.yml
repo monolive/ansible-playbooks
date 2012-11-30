@@ -1,0 +1,50 @@
+- name: start instance
+  hosts: local
+  connection: local
+  gather_facts: False
+  vars:
+    access_key: MyKey
+    secret_key: MySecretKey
+    ec2_url: http://<myclc>:8773/services/Eucalyptus
+    keypair: admin
+    instance_type: m1.small
+    security_group: default
+    image: emi-C0AA4021
+    mail_from: ansible@localhost
+    mail_to: root@localhost
+  tasks:
+  - name: Launch new EC2 instance
+    local_action: ec2
+        ec2_access_key=${access_key}
+        ec2_secret_key=${secret_key}
+        ec2_url=${ec2_url}
+        keypair=${keypair}
+        group=${security_group}
+        instance_type=${instance_type}
+        image=${image}
+        wait=true
+        user_data='{"shortname":"${shortname}","admin":"monolive", "hostname":"${shortname}.${dnsdomain}","mail":"${mail_from}"}'
+    register: ec2
+
+  - name: Create a group of launched instances
+    local_action: add_host hostname=${ec2.instances[0].public_ip} groupname=instance_tmp
+
+  - name: Send e-mail to admins
+    local_action: mail
+        from=${mail_from}
+        to=${mail_to}
+        subject="EC2 instance (${shortname}) ${ec2.instances[0].id}"
+        body="EC2 instance ${ec2.instances[0].id} created on ${ec2.instances[0].public_ip}"
+
+- name: provision instance
+  hosts: instance_tmp
+  user: root
+  connection: paramiko
+  gather_facts: True
+
+  tasks:
+  - name: install httpd
+    action: yum pkg=httpd state=installed
+  - name: start httpd
+    action: service name=httpd state=started enabled=truE
+
