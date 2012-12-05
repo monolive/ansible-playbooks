@@ -1,0 +1,25 @@
+- name: provision instance
+  hosts: mysql
+  user: root
+  connection: paramiko
+  gather_facts: false
+
+  tasks:
+  - name: Remove mysql-libs
+    action: yum pkg=mysql-libs state=removed
+  - name: Copy motd
+    copy: src=/home/orenault/scripts/playbooks/mysql-galera/files/motd dest=/etc/motd
+  - name: Copy MySQL Server
+    copy: src=/home/orenault/scripts/playbooks/mysql-galera/files/MySQL-server-5.5.28_wsrep_23.7-1.rhel5.x86_64.rpm dest=/tmp/MySQL-server-5.5.28_wsrep_23.7-1.rhel5.x86_64.rpm
+  - name: Copy MySQL Client
+    copy: src=/home/orenault/scripts/playbooks/mysql-galera/files/MySQL-client-5.5.28-1.el6.x86_64.rpm dest=/tmp/MySQL-client-5.5.28-1.el6.x86_64.rpm
+  - name: Copy galera
+    copy: src=/home/orenault/scripts/playbooks/mysql-galera/files/galera-23.2.2-1.rhel5.x86_64.rpm dest=/tmp/galera-23.2.2-1.rhel5.x86_64.rpm
+  - name: Install packages
+    action: command yum localinstall -y /tmp/galera-23.2.2-1.rhel5.x86_64.rpm /tmp/MySQL-client-5.5.28-1.el6.x86_64.rpm /tmp/MySQL-server-5.5.28_wsrep_23.7-1.rhel5.x86_64.rpm
+  - name: Delete old files
+    action: command rm -f /tmp/*.x86_64.rpm
+  - name: re-install redhat-lsb
+    action: yum pkg=redhat-lsb state=installed
+  - name: Start MySQL
+    action: service name=mysql state=started enabled=true
