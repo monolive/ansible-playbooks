@@ -1,0 +1,63 @@
+- name: start instance
+  hosts: local
+  connection: local
+  gather_facts: False
+  vars:
+    access_key: XXX
+    secret_key: YYY
+    ec2_url: YYY
+    keypair: admin
+    instance_type: c1.medium
+    security_group: mysql
+    image: emi-9B9B43BC
+    mail_from: ansible@localhost
+    mail_to: myadmin@gmail.com
+  tasks:
+  - name: Launch new EC2 instance
+    local_action: ec2
+        ec2_access_key=${access_key}
+        ec2_secret_key=${secret_key}
+        ec2_url=${ec2_url}
+        keypair=${keypair}
+        group=${security_group}
+        instance_type=${instance_type}
+        image=${image}
+        wait=true
+        user_data='{"shortname":"${shortname}","admin":"monolive", "hostname":"${shortname}.${dnsdomain}","mail":"${mail_from}"}'
+    register: ec2
+
+  - name: Create a group of launched instances
+    local_action: add_host hostname=${ec2.instances[0].public_ip} groupname=instance_tmp
+
+  - name: Send e-mail to admins
+    local_action: mail
+        from=${mail_from}
+        to=${mail_to}
+        subject="EC2 instance (${shortname}) ${ec2.instances[0].id}"
+        body="EC2 instance ${ec2.instances[0].id} created on ${ec2.instances[0].public_ip}"
+
+- name: provision instance
+  hosts: instance_tmp
+  user: root
+  connection: paramiko
+  gather_facts: True
+
+  tasks:
+  - name: Remove mysql-libs
+    action: yum pkg=mysql-libs state=removed
+  - name: Copy motd
+    copy: src=/home/orenault/scripts/playbooks/mysql-galera/files/motd dest=/etc/motd
+  - name: Copy MySQL Server
+    copy: src=/home/orenault/scripts/playbooks/mysql-galera/files/MySQL-server-5.5.28_wsrep_23.7-1.rhel5.x86_64.rpm dest=/tmp/MySQL-server-5.5.28_wsrep_23.7-1.rhel5.x86_64.rpm
+  - name: Copy MySQL Client
+    copy: src=/home/orenault/scripts/playbooks/mysql-galera/files/MySQL-client-5.5.28-1.el6.x86_64.rpm dest=/tmp/MySQL-client-5.5.28-1.el6.x86_64.rpm
+  - name: Copy galera
+    copy: src=/home/orenault/scripts/playbooks/mysql-galera/files/galera-23.2.2-1.rhel5.x86_64.rpm dest=/tmp/galera-23.2.2-1.rhel5.x86_64.rpm
+  - name: Install packages
+    action: command yum localinstall -y /tmp/galera-23.2.2-1.rhel5.x86_64.rpm /tmp/MySQL-client-5.5.28-1.el6.x86_64.rpm /tmp/MySQL-server-5.5.28_wsrep_23.7-1.rhel5.x86_64.rpm
+  - name: Delete old files
+    action: command rm -f /tmp/*.x86_64.rpm
+  - name: re-install redhat-lsb
+    action: yum pkg=redhat-lsb state=installed
+  - name: Start MySQL
+    action: service name=mysql state=started enabled=true
