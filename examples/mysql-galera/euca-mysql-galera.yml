@@ -12,6 +12,7 @@
     image: emi-9B9B43BC
     mail_from: ansible@localhost
     mail_to: myadmin@gmail.com
+    mysql_pwd: password
   tasks:
   - name: Launch new EC2 instance
     local_action: ec2
@@ -61,3 +62,12 @@
     action: yum pkg=redhat-lsb state=installed
   - name: Start MySQL
     action: service name=mysql state=started enabled=true
+  - name: Set mysql pwd for root user
+    action: mysqladmin -u root password '${mysql_pwd}'
+  - name: Create MySQL directory
+    file: dest=/etc/mysql/conf.d state=directory
+  - name: Copy wsrep.cnf
+    copy: src=/home/orenault/scripts/playbooks/mysql-galera/files/wsrep.cnf dest=/etc/mysql/conf.d/wsrep.cnf mode=0755
+  - name: Copy my.cnf
+    copy: src=/home/orenault/scripts/playbooks/mysql-galera/files/my.cnf dest=/etc/my.cnf mode=0755
+
